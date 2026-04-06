@@ -23,7 +23,16 @@ function App() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/analyze', {
+      // Look for this line:
+// const response = await fetch('http://localhost:8000/analyze', {
+
+// CHANGE IT TO THIS:
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const response = await fetch(`${apiUrl}/analyze`, {
+  method: 'POST',
+  body: formData,
+});
+{
         method: 'POST',
         body: formData,
       });
