@@ -1,26 +1,34 @@
 import io
 import json
+import os
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from google import genai
 import PyPDF2
 import docx
+from dotenv import load_dotenv
 
-app = FastAPI(title="Smart Talent Selection Engine API")
+# Load the hidden environment variables from the .env file
+load_dotenv()
 
-# Enable CORS
+app = FastAPI(title="AIzaSyBnRwezJwSGPkzPRNYDdeJuV1QXsYjsgAI")
+
+# Enable CORS so the React frontend can communicate with this backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"], # Allows all origins for local development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- CONFIGURE GEMINI (USING THE NEW SDK) ---
-# IMPORTANT: Put your brand new Gemini API key here
-client = genai.Client(api_key="AIzaSyDfCmW-KgrEZK0AfKE0ggFNl-U3XcQyHN4g")
+# --- CONFIGURE GEMINI SECURELY ---
+# This pulls the key from your hidden .env file
+api_key = os.getenv("GEMINI_API_KEY")
+
+# Initialize the Gemini client
+client = genai.Client(api_key=api_key)
 
 def extract_text(file_bytes, filename):
     """Extracts text from PDF or DocX bytes."""
@@ -29,12 +37,16 @@ def extract_text(file_bytes, filename):
         try:
             reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
             return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
-        except: return ""
+        except Exception as e: 
+            print(f"PDF extraction error: {e}")
+            return ""
     elif filename.endswith('.docx'):
         try:
             doc = docx.Document(io.BytesIO(file_bytes))
             return " ".join([para.text for para in doc.paragraphs])
-        except: return ""
+        except Exception as e:
+            print(f"DocX extraction error: {e}")
+            return ""
     return ""
 
 @app.post("/analyze")
@@ -42,6 +54,7 @@ async def analyze_candidates(job_description: str = Form(...), files: List[Uploa
     results = []
 
     for file in files:
+        # Read the file contents into memory
         file_bytes = await file.read()
         resume_text = extract_text(file_bytes, file.filename)
         
@@ -65,19 +78,20 @@ async def analyze_candidates(job_description: str = Form(...), files: List[Uploa
         """
         
         try:
-            # Using the new genai client syntax
+            # Send the prompt to the new Gemini model
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
             )
             
-            # Clean up JSON formatting
+            # Clean up JSON formatting to ensure it parses correctly
             response_text = response.text.replace('```json', '').replace('```', '').strip()
             result_json = json.loads(response_text)
             
+            # Add the structured data to our results list
             results.append({
                 "id": str(len(results) + 1),
-                "name": file.filename.rsplit('.', 1)[0],
+                "name": file.filename.rsplit('.', 1)[0], # Use filename without extension as name
                 "years_experience": result_json.get("years_experience", "N/A"),
                 "top_skills": result_json.get("top_skills", []),
                 "compatibility_score": result_json.get("compatibility_score", 0),
@@ -87,6 +101,6 @@ async def analyze_candidates(job_description: str = Form(...), files: List[Uploa
             print(f"Error analyzing {file.filename}: {e}")
             continue
 
-    # Sort results by highest score first
+    # Sort results by highest compatibility score first
     results.sort(key=lambda x: x["compatibility_score"], reverse=True)
     return results
