@@ -9,34 +9,31 @@ import PyPDF2
 import docx
 from dotenv import load_dotenv
 
-# Load the hidden environment variables from the .env file
+# Load environment variables
 load_dotenv()
 
-app = FastAPI(title="AIzaSyBnRwezJwSGPkzPRNYDdeJuV1QXsYjsgAI")
+app = FastAPI(title="Smart Talent Backend")
 
-# Enable CORS so the React frontend can communicate with this backend
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allows all origins for local development
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- CONFIGURE GEMINI SECURELY ---
-# This pulls the key from your hidden .env file
-api_key = os.getenv("GEMINI_API_KEY")
-
-# Initialize the Gemini client
+# Pull API key securely
+api_key = os.getenv("AIzaSyAHLZuRvhShRX1iDyYhVzGskbe0h-WimOU")
 client = genai.Client(api_key=api_key)
 
 def extract_text(file_bytes, filename):
-    """Extracts text from PDF or DocX bytes."""
     filename = filename.lower()
     if filename.endswith('.pdf'):
         try:
             reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-            return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+            text = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+            return text
         except Exception as e: 
             print(f"PDF extraction error: {e}")
             return ""
@@ -52,55 +49,56 @@ def extract_text(file_bytes, filename):
 @app.post("/analyze")
 async def analyze_candidates(job_description: str = Form(...), files: List[UploadFile] = File(...)):
     results = []
+    
+    # DEBUG: See if files are actually reaching the backend
+    print(f"--- New Request ---")
+    print(f"Files received: {[f.filename for f in files]}")
 
     for file in files:
-        # Read the file contents into memory
         file_bytes = await file.read()
         resume_text = extract_text(file_bytes, file.filename)
         
         if not resume_text.strip():
-            print(f"Warning: Could not extract text from {file.filename}")
+            print(f"Skipping {file.filename}: No text extracted.")
             continue
 
-        # AI Prompt
         prompt = f"""
         Analyze the following Resume against the Job Description (JD).
-        
         JD: {job_description}
-        
         Resume: {resume_text}
-        
         Provide the output strictly in valid JSON format with these exact keys:
         - "compatibility_score": A number between 0 and 100.
-        - "years_experience": A short string summarizing extracted years of relevant experience.
-        - "top_skills": An array of strings representing the top matching skills.
-        - "ai_justification": A 2-sentence summary explaining exactly why they were ranked this way based on the JD.
+        - "years_experience": A short string.
+        - "top_skills": An array of strings.
+        - "ai_justification": A 2-sentence summary.
         """
         
         try:
-            # Send the prompt to the new Gemini model
+            # FIX: Changed 'gemini-2.5-flash' to 'gemini-2.0-flash'
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-2.5-flash', 
                 contents=prompt,
             )
             
-            # Clean up JSON formatting to ensure it parses correctly
+            # Clean and parse JSON
             response_text = response.text.replace('```json', '').replace('```', '').strip()
             result_json = json.loads(response_text)
             
-            # Add the structured data to our results list
             results.append({
                 "id": str(len(results) + 1),
-                "name": file.filename.rsplit('.', 1)[0], # Use filename without extension as name
+                "name": file.filename.rsplit('.', 1)[0],
                 "years_experience": result_json.get("years_experience", "N/A"),
                 "top_skills": result_json.get("top_skills", []),
                 "compatibility_score": result_json.get("compatibility_score", 0),
                 "ai_justification": result_json.get("ai_justification", "")
             })
+            print(f"Successfully analyzed: {file.filename}")
+
         except Exception as e:
             print(f"Error analyzing {file.filename}: {e}")
             continue
 
-    # Sort results by highest compatibility score first
+    # Sort results
     results.sort(key=lambda x: x["compatibility_score"], reverse=True)
+    print(f"Returning {len(results)} results.")
     return results

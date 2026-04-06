@@ -36,6 +36,7 @@ function App() {
       }
 
       const data = await response.json();
+      console.log("Data received from AI:", data);
       setResults(data);
     } catch (error) {
       console.error("Analysis failed:", error);
