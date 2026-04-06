@@ -24,9 +24,11 @@ app.add_middleware(
 )
 
 # Pull API key securely
-api_key = os.getenv("AIzaSyAHLZuRvhShRX1iDyYhVzGskbe0h-WimOU")
-client = genai.Client(api_key=api_key)
+import os
+from dotenv import load_dotenv
 
+load_dotenv() # This looks for a file named .env
+api_key = os.getenv("GEMINI_API_KEY")
 def extract_text(file_bytes, filename):
     filename = filename.lower()
     if filename.endswith('.pdf'):
