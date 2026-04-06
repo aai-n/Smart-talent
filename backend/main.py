@@ -7,10 +7,11 @@ from typing import List
 from google import genai
 import PyPDF2
 import docx
-from dotenv import load_dotenv
+from dotenv import load_dotenv # Import this to read .env files
 
-# Load environment variables
-load_dotenv()
+# --- 1. LOAD THE SECRETS ---
+load_dotenv() # This looks for a file named .env in your folder
+api_key = os.getenv("GEMINI_API_KEY")
 
 app = FastAPI(title="Smart Talent Backend")
 
@@ -23,12 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pull API key securely
-import os
-from dotenv import load_dotenv
+# --- 2. INITIALIZE THE CLIENT SECURELY ---
+if not api_key:
+    print("WARNING: GEMINI_API_KEY not found in environment variables!")
+client = genai.Client(api_key=api_key)
 
-load_dotenv() # This looks for a file named .env
-api_key = os.getenv("GEMINI_API_KEY")
 def extract_text(file_bytes, filename):
     filename = filename.lower()
     if filename.endswith('.pdf'):
@@ -52,7 +52,6 @@ def extract_text(file_bytes, filename):
 async def analyze_candidates(job_description: str = Form(...), files: List[UploadFile] = File(...)):
     results = []
     
-    # DEBUG: See if files are actually reaching the backend
     print(f"--- New Request ---")
     print(f"Files received: {[f.filename for f in files]}")
 
@@ -76,9 +75,9 @@ async def analyze_candidates(job_description: str = Form(...), files: List[Uploa
         """
         
         try:
-            # FIX: Changed 'gemini-2.5-flash' to 'gemini-2.0-flash'
+            # Use 'gemini-2.0-flash' for best results
             response = client.models.generate_content(
-                model='gemini-2.5-flash', 
+                model='gemini-2.0-flash', 
                 contents=prompt,
             )
             
@@ -100,7 +99,6 @@ async def analyze_candidates(job_description: str = Form(...), files: List[Uploa
             print(f"Error analyzing {file.filename}: {e}")
             continue
 
-    # Sort results
     results.sort(key=lambda x: x["compatibility_score"], reverse=True)
     print(f"Returning {len(results)} results.")
     return results
