@@ -23,19 +23,18 @@ function App() {
     }
 
     try {
-      // Look for this line:
-// const response = await fetch('http://localhost:8000/analyze', {
-
-// CHANGE IT TO THIS:
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const response = await fetch(`${apiUrl}/analyze`, {
-  method: 'POST',
-  body: formData,
-});
-{
+      // Correctly determining the API URL for local vs production (Render)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      
+      const response = await fetch(`${apiUrl}/analyze`, {
         method: 'POST',
         body: formData,
       });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
       const data = await response.json();
       setResults(data);
     } catch (error) {
