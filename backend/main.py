@@ -12,6 +12,11 @@ from dotenv import load_dotenv # Import this to read .env files
 # --- 1. LOAD THE SECRETS ---
 load_dotenv() # This looks for a file named .env in your folder
 api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    # This will show up in your Render Logs if you forgot to add the key there!
+    print("CRITICAL ERROR: GEMINI_API_KEY is missing from the environment!")
+else:
+    print("Success: API Key loaded successfully.")
 
 app = FastAPI(title="Smart Talent Backend")
 
