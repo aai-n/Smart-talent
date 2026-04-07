@@ -101,9 +101,21 @@ async def analyze_candidates(job_description: str = Form(...), files: List[Uploa
             print(f"Successfully analyzed: {file.filename}")
 
         except Exception as e:
-            print(f"Error analyzing {file.filename}: {e}")
+            # Check if the error is a Quota/Rate Limit error (Error 429)
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print(f"QUOTA EXHAUSTED for {file.filename}. User must wait.")
+                results.append({
+                    "id": str(len(results) + 1),
+                    "name": file.filename.rsplit('.', 1)[0],
+                    "years_experience": "N/A",
+                    "top_skills": [],
+                    "compatibility_score": 0,
+                    "ai_justification": "⚠️ Gemini API Quota reached. Please wait 60 seconds before trying again."
+                })
+            else:
+                print(f"Error analyzing {file.filename}: {e}")
+            
             continue
-
     results.sort(key=lambda x: x["compatibility_score"], reverse=True)
     print(f"Returning {len(results)} results.")
     return results
